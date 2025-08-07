@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Create Investigation - Sift{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Create New Investigation</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Investigation Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               placeholder="Enter investigation name">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                                placeholder="Describe the investigation scope and objectives"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="location" name="location"
+                               placeholder="City, State/Country for OSINT correlation">
+                        <div class="form-text">
+                            Geographic location for correlating OSINT data (e.g., "New York, NY" or "London, UK")
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="timezone" class="form-label">Timezone</label>
+                        <select class="form-select" id="timezone" name="timezone">
+                            <option value="UTC" selected>UTC</option>
+                            <option value="US/Eastern">US/Eastern</option>
+                            <option value="US/Central">US/Central</option>
+                            <option value="US/Mountain">US/Mountain</option>
+                            <option value="US/Pacific">US/Pacific</option>
+                            <option value="Europe/London">Europe/London</option>
+                            <option value="Europe/Paris">Europe/Paris</option>
+                            <option value="Europe/Berlin">Europe/Berlin</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo</option>
+                            <option value="Australia/Sydney">Australia/Sydney</option>
+                        </select>
+                        <div class="form-text">
+                            Timezone for interpreting forensic timestamps
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create Investigation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Investigation Workflow</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-start mb-3">
+                    <div class="flex-shrink-0">
+                        <span class="badge bg-primary rounded-pill">1</span>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6>Create Investigation</h6>
+                        <p class="text-muted small">Set up case details and parameters</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-start mb-3">
+                    <div class="flex-shrink-0">
+                        <span class="badge bg-secondary rounded-pill">2</span>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6>Upload Evidence</h6>
+                        <p class="text-muted small">Process forensic image files</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-start mb-3">
+                    <div class="flex-shrink-0">
+                        <span class="badge bg-secondary rounded-pill">3</span>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6>Collect OSINT</h6>
+                        <p class="text-muted small">Gather social media and news data</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-start mb-3">
+                    <div class="flex-shrink-0">
+                        <span class="badge bg-secondary rounded-pill">4</span>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6>Run Correlation</h6>
+                        <p class="text-muted small">Analyze temporal and spatial relationships</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-start">
+                    <div class="flex-shrink-0">
+                        <span class="badge bg-secondary rounded-pill">5</span>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6>Review Results</h6>
+                        <p class="text-muted small">Examine findings in various visualizations</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - {{ investigation.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Analytics Dashboard</h2>
+                <p class="text-muted">{{ investigation.name }}</p>
+            </div>
+            <a href="{{ url_for('investigation_detail', investigation_id=investigation.id) }}" 
+               class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> Back to Investigation
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Forensic Events Timeline</h5>
+            </div>
+            <div class="card-body">
+                <div id="forensicTimeline"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">OSINT Sources Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div id="osintSources"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Correlation Strength Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div id="correlationStrength"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Analysis Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12">
+                        <h6>Investigation Metrics</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Location:</strong> {{ investigation.location or 'Not specified' }}</li>
+                            <li><strong>Timezone:</strong> {{ investigation.timezone }}</li>
+                            <li><strong>Created:</strong> {{ investigation.created_timestamp.split('T')[0] if investigation.created_timestamp else 'Unknown' }}</li>
+                            <li><strong>Status:</strong> 
+                                <span class="badge bg-{% if investigation.status == 'active' %}success{% else %}secondary{% endif %}">
+                                    {{ investigation.status }}
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Export Options</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">Export investigation data for further analysis or reporting.</p>
+                <a href="/api/investigation/{{ investigation.id }}/export" 
+                   class="btn btn-outline-primary" target="_blank">
+                    <i class="fas fa-download"></i> Export JSON Data
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Render forensic timeline chart
+if ({{ forensic_timeline|safe }}) {
+    Plotly.newPlot('forensicTimeline', 
+        {{ forensic_timeline|safe }}.data,
+        {{ forensic_timeline|safe }}.layout || {},
+        {responsive: true}
+    );
+}
+
+// Render OSINT sources chart
+if ({{ osint_sources_chart|safe }}) {
+    Plotly.newPlot('osintSources', 
+        {{ osint_sources_chart|safe }}.data,
+        {{ osint_sources_chart|safe }}.layout || {},
+        {responsive: true}
+    );
+}
+
+// Render correlation strength chart
+if ({{ correlation_strength_chart|safe }}) {
+    Plotly.newPlot('correlationStrength', 
+        {{ correlation_strength_chart|safe }}.data,
+        {{ correlation_strength_chart|safe }}.layout || {},
+        {responsive: true}
+    );
+}
+</script>
+{% endblock %}

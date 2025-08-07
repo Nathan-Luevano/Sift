@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Map View - {{ investigation.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Geographic Analysis</h2>
+                <p class="text-muted">{{ investigation.name }}</p>
+            </div>
+            <a href="{{ url_for('investigation_detail', investigation_id=investigation.id) }}" 
+               class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> Back to Investigation
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">OSINT Data Geographic Distribution</h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="mapContainer" style="height: 600px;">
+                    {{ map_html|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Map Legend</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="bg-primary rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+                            <span>Twitter Posts</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="bg-warning rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+                            <span>Reddit Posts</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="bg-success rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+                            <span>News Articles (API)</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="bg-danger rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+                            <span>Google News</span>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-info-circle"></i>
+                    Click on markers to view detailed information about each OSINT item. 
+                    Geographic correlation helps identify patterns and relationships between digital events and real-world activities.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+#mapContainer .folium-map {
+    width: 100% !important;
+    height: 600px !important;
+}
+</style>
+{% endblock %}

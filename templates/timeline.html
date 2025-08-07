@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Timeline - {{ investigation.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Timeline Analysis</h2>
+                <p class="text-muted">{{ investigation.name }}</p>
+            </div>
+            <a href="{{ url_for('investigation_detail', investigation_id=investigation.id) }}" 
+               class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> Back to Investigation
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="filterType" class="form-label">Filter by Type</label>
+                        <select class="form-select" id="filterType">
+                            <option value="all">All Events</option>
+                            <option value="forensic">Forensic Only</option>
+                            <option value="osint">OSINT Only</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filterDate" class="form-label">Date Range</label>
+                        <input type="date" class="form-control" id="filterDate">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="searchContent" class="form-label">Search Content</label>
+                        <input type="text" class="form-control" id="searchContent" 
+                               placeholder="Search in descriptions...">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary d-block" onclick="applyFilters()">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Timeline Events</h5>
+                <div>
+                    <span class="badge bg-primary me-2">
+                        <i class="fas fa-hdd"></i> Forensic
+                    </span>
+                    <span class="badge bg-info me-2">
+                        <i class="fas fa-globe"></i> OSINT
+                    </span>
+                    <span class="badge bg-warning">
+                        <i class="fas fa-link"></i> Correlated
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="timelineContainer" style="max-height: 800px; overflow-y: auto;">
+                    {% for item in timeline_data %}
+                    <div class="timeline-item mb-3 p-3 border-start border-4 
+                                {% if item.type == 'forensic' %}border-primary{% else %}border-info{% endif %}"
+                         data-type="{{ item.type }}" data-timestamp="{{ item.timestamp }}">
+                        
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-{% if item.type == 'forensic' %}primary{% else %}info{% endif %} me-2">
+                                    <i class="fas fa-{% if item.type == 'forensic' %}hdd{% else %}globe{% endif %}"></i>
+                                    {{ item.type|title }}
+                                </span>
+                                <h6 class="mb-0">{{ item.title }}</h6>
+                            </div>
+                            <small class="text-muted">
+                                {{ item.timestamp.strftime('%Y-%m-%d %H:%M:%S') if item.timestamp.strftime else item.timestamp }}
+                            </small>
+                        </div>
+                        
+                        <p class="mb-2">{{ item.description }}</p>
+                        
+                        {% if item.type == 'forensic' %}
+                            <div class="row text-sm">
+                                <div class="col-md-6">
+                                    <strong>Event:</strong> {{ item.data.event_type }}<br>
+                                    <strong>Size:</strong> {{ item.data.file_size }} bytes<br>
+                                    <strong>Type:</strong> {{ item.data.file_type }}
+                                </div>
+                                <div class="col-md-6">
+                                    {% if item.data.inode %}
+                                    <strong>Inode:</strong> {{ item.data.inode }}<br>
+                                    {% endif %}
+                                    {% if item.data.uid %}
+                                    <strong>UID:</strong> {{ item.data.uid }}<br>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="row text-sm">
+                                <div class="col-md-6">
+                                    <strong>Source:</strong> {{ item.data.source }}<br>
+                                    <strong>Author:</strong> {{ item.data.author or 'Unknown' }}
+                                </div>
+                                <div class="col-md-6">
+                                    {% if item.data.url %}
+                                    <strong>URL:</strong> 
+                                    <a href="{{ item.data.url }}" target="_blank" class="text-decoration-none">
+                                        View Original <i class="fas fa-external-link-alt fa-sm"></i>
+                                    </a><br>
+                                    {% endif %}
+                                    {% if item.data.location %}
+                                    <strong>Location:</strong> {{ item.data.location }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        {% set item_correlations = correlations|selectattr('forensic_timestamp', 'equalto', item.timestamp)|list if item.type == 'forensic' else [] %}
+                        {% if item_correlations %}
+                            <div class="mt-2">
+                                <span class="badge bg-warning">
+                                    <i class="fas fa-link"></i> {{ item_correlations|length }} Correlation(s)
+                                </span>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function applyFilters() {
+    const typeFilter = document.getElementById('filterType').value;
+    const dateFilter = document.getElementById('filterDate').value;
+    const searchFilter = document.getElementById('searchContent').value.toLowerCase();
+    
+    const items = document.querySelectorAll('.timeline-item');
+    
+    items.forEach(item => {
+        let showItem = true;
+        
+        // Type filter
+        if (typeFilter !== 'all' && item.dataset.type !== typeFilter) {
+            showItem = false;
+        }
+        
+        // Date filter
+        if (dateFilter && !item.dataset.timestamp.startsWith(dateFilter)) {
+            showItem = false;
+        }
+        
+        // Search filter
+        if (searchFilter && !item.textContent.toLowerCase().includes(searchFilter)) {
+            showItem = false;
+        }
+        
+        item.style.display = showItem ? 'block' : 'none';
+    });
+}
+
+// Auto-apply search filter as user types
+document.getElementById('searchContent').addEventListener('input', applyFilters);
+document.getElementById('filterType').addEventListener('change', applyFilters);
+document.getElementById('filterDate').addEventListener('change', applyFilters);
+</script>
+
+<style>
+.timeline-item {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.timeline-item:hover {
+    background-color: #e9ecef;
+}
+
+.text-sm {
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %}

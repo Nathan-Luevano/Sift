@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Sift Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Investigations Dashboard</h2>
+            <a href="{{ url_for('create_investigation') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Investigation
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% if investigations %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Active Investigations</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Location</th>
+                                    <th>Created</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for investigation in investigations %}
+                                <tr>
+                                    <td>{{ investigation.id }}</td>
+                                    <td>
+                                        <a href="{{ url_for('investigation_detail', investigation_id=investigation.id) }}" 
+                                           class="text-decoration-none">
+                                            {{ investigation.name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ investigation.description[:50] }}{% if investigation.description|length > 50 %}...{% endif %}</td>
+                                    <td>{{ investigation.location or 'Not specified' }}</td>
+                                    <td>{{ investigation.created_timestamp.split('T')[0] if investigation.created_timestamp else 'Unknown' }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if investigation.status == 'active' %}success{% else %}secondary{% endif %}">
+                                            {{ investigation.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('investigation_detail', investigation_id=investigation.id) }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h4>No Investigations Found</h4>
+                    <p class="text-muted">Get started by creating your first investigation.</p>
+                    <a href="{{ url_for('create_investigation') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Investigation
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">About Sift</h5>
+            </div>
+            <div class="card-body">
+                <p>Sift correlates digital forensic timelines with open-source intelligence data to provide contextual insights for investigations.</p>
+                <ul>
+                    <li>Parse forensic evidence files (E01, raw images)</li>
+                    <li>Collect social media and news data</li>
+                    <li>Correlate events temporally and geospatially</li>
+                    <li>Visualize relationships and patterns</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Start</h5>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>Create a new investigation</li>
+                    <li>Upload forensic evidence files</li>
+                    <li>Collect OSINT data for your location and timeframe</li>
+                    <li>Run correlation analysis</li>
+                    <li>Review results in timeline and map views</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

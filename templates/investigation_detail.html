@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+
+{% block title %}{{ investigation.name }} - Sift{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>{{ investigation.name }}</h2>
+                <p class="text-muted">{{ investigation.description }}</p>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-{% if investigation.status == 'active' %}success{% else %}secondary{% endif %} fs-6">
+                    {{ investigation.status }}
+                </span>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteInvestigation()">
+                    <i class="fas fa-trash"></i> Delete Investigation
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ stats.forensic_events }}</h3>
+                <p class="mb-0">Forensic Events</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info">{{ stats.osint_items }}</h3>
+                <p class="mb-0">OSINT Items</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning">{{ stats.correlations }}</h3>
+                <p class="mb-0">Correlations</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ "%.2f"|format(stats.avg_correlation_strength) }}</h3>
+                <p class="mb-0">Avg Strength</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Investigation Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Upload Evidence</h6>
+                        <form id="evidenceForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <input type="file" class="form-control" id="evidenceFiles" 
+                                       accept=".E01,.e01,.dd,.raw,.img" multiple required>
+                                <div class="form-text">Supported: E01, DD, RAW, IMG. You can select multiple files.</div>
+                            </div>
+                            <div id="fileList" class="mb-3" style="display: none;">
+                                <small class="text-muted">Selected files:</small>
+                                <ul id="selectedFiles" class="list-unstyled mt-1"></ul>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload"></i> Process Evidence
+                            </button>
+                        </form>
+                        
+                        <hr class="my-4">
+                        
+                        <h6>Intelligence Context <span class="text-muted">(Optional)</span></h6>
+                        <div class="mb-3">
+                            <textarea id="contextNotes" class="form-control" rows="4" 
+                                      placeholder="Enter additional context, background information, or specific intelligence requirements in markdown format. This will help guide the LLM analysis and web search queries.&#10;&#10;Example:&#10;- Suspected insider threat&#10;- Timeline around 2024-01-15&#10;- Look for social media activity&#10;- Check for data exfiltration patterns"></textarea>
+                            <div class="form-text">Markdown formatting supported. This context will enhance LLM analysis quality.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>Investigation Actions</h6>
+                        <div class="d-grid gap-2">
+                            <button id="fullInvestigationBtn" class="btn btn-success btn-lg">
+                                <i class="fas fa-magic"></i> Run Full Investigation
+                            </button>
+                            <div class="form-text text-center mb-3">Processes all evidence, collects web intelligence using LLM, runs correlation analysis, and generates comprehensive insights</div>
+                            
+                            <div class="row">
+                                <div class="col-6">
+                                    <button id="webIntelBtn" class="btn btn-info w-100 mb-2">
+                                        <i class="fas fa-search"></i> Web Intelligence
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button id="correlateBtn" class="btn btn-warning w-100 mb-2">
+                                        <i class="fas fa-chart-line"></i> Correlate
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-6">
+                                    <a href="{{ url_for('timeline_view', investigation_id=investigation.id) }}" 
+                                       class="btn btn-outline-primary w-100 mb-2">
+                                        <i class="fas fa-clock"></i> Timeline
+                                    </a>
+                                </div>
+                                <div class="col-6">
+                                    <a href="{{ url_for('map_view', investigation_id=investigation.id) }}" 
+                                       class="btn btn-outline-success w-100 mb-2">
+                                        <i class="fas fa-map"></i> Map
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <a href="{{ url_for('analytics_view', investigation_id=investigation.id) }}" 
+                               class="btn btn-outline-info">
+                                <i class="fas fa-chart-bar"></i> Analytics Dashboard
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if correlations %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Top Correlations</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Forensic File</th>
+                                <th>Timestamp</th>
+                                <th>OSINT Source</th>
+                                <th>OSINT Content</th>
+                                <th>Strength</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for corr in correlations %}
+                            <tr>
+                                <td><code>{{ corr.file_path.split('/')[-1] }}</code></td>
+                                <td>{{ corr.forensic_timestamp.split('T')[0] }}</td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ corr.osint_source }}</span>
+                                </td>
+                                <td>{{ corr.osint_content[:80] }}...</td>
+                                <td>
+                                    <span class="{% if corr.correlation_strength > 0.7 %}correlation-strength-high{% elif corr.correlation_strength > 0.4 %}correlation-strength-medium{% else %}correlation-strength-low{% endif %}">
+                                        {{ "%.2f"|format(corr.correlation_strength) }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div id="alertContainer"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// File selection handler to show selected files
+document.getElementById('evidenceFiles').addEventListener('change', function(e) {
+    const files = Array.from(e.target.files);
+    const fileList = document.getElementById('fileList');
+    const selectedFilesList = document.getElementById('selectedFiles');
+    
+    if (files.length > 0) {
+        selectedFilesList.innerHTML = files.map(file => 
+            `<li><i class="fas fa-file"></i> ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)</li>`
+        ).join('');
+        fileList.style.display = 'block';
+    } else {
+        fileList.style.display = 'none';
+    }
+});
+
+document.getElementById('evidenceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    const fileInput = document.getElementById('evidenceFiles');
+    
+    if (fileInput.files.length === 0) {
+        showAlert('Please select at least one evidence file.', 'warning');
+        return;
+    }
+    
+    // Add all selected files
+    for (let i = 0; i < fileInput.files.length; i++) {
+        formData.append('evidence_files', fileInput.files[i]);
+    }
+    formData.append('timezone', '{{ investigation.timezone }}');
+    
+    const fileCount = fileInput.files.length;
+    const fileWord = fileCount === 1 ? 'file' : 'files';
+    showAlert(`Processing ${fileCount} evidence ${fileWord}...`, 'info');
+    
+    fetch(`/investigation/{{ investigation.id }}/upload_evidence`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = data.message;
+            if (data.processed_files) {
+                message += '<br><br><strong>Details:</strong><br>' + 
+                          data.processed_files.map(f => `• ${f}`).join('<br>');
+            }
+            if (data.warnings) {
+                message += '<br><br><strong>Warnings:</strong><br>' + 
+                          data.warnings.map(w => `⚠️ ${w}`).join('<br>');
+            }
+            showAlert(message, 'success');
+            setTimeout(() => location.reload(), 3000);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error processing evidence: ' + error.message, 'danger');
+    });
+});
+
+document.getElementById('fullInvestigationBtn').addEventListener('click', function() {
+    const contextNotes = document.getElementById('contextNotes').value.trim();
+    
+    const data = {
+        context_notes: contextNotes
+    };
+    
+    showAlert('Running full investigation... This may take several minutes.<br>Processing evidence → LLM web intelligence → Correlation analysis → Insights generation', 'info');
+    
+    fetch(`/investigation/{{ investigation.id }}/full_investigation`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = `<strong>Full Investigation Complete!</strong><br>${data.message}<br><br>`;
+            if (data.results) {
+                message += `<strong>Results:</strong><br>`;
+                message += `• Forensic Events: ${data.results.forensic_events_count}<br>`;
+                message += `• Web Intelligence: ${data.results.osint_items_count}<br>`;
+                message += `• Correlations: ${data.results.correlations_count}<br>`;
+                
+                if (data.results.analysis && data.results.analysis.investigation_summary) {
+                    message += `<br><strong>Key Findings:</strong><br>${data.results.analysis.investigation_summary.substring(0, 400)}...`;
+                }
+            }
+            showAlert(message, 'success');
+            setTimeout(() => location.reload(), 5000);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error running full investigation: ' + error.message, 'danger');
+    });
+});
+
+document.getElementById('correlateBtn').addEventListener('click', function() {
+    showAlert('Running correlation analysis...', 'info');
+    
+    fetch(`/investigation/{{ investigation.id }}/run_correlation`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = data.message;
+            if (data.report && data.report.llm_summary) {
+                message += '<br><strong>LLM Summary:</strong> ' + data.report.llm_summary.substring(0, 200) + '...';
+            }
+            showAlert(message, 'success');
+            setTimeout(() => location.reload(), 3000);
+        } else {
+            showAlert(data.error || data.warning, data.error ? 'danger' : 'warning');
+        }
+    })
+    .catch(error => {
+        showAlert('Error running correlation: ' + error.message, 'danger');
+    });
+});
+
+// Remove LLM Analysis button since it's integrated into Full Investigation
+
+document.getElementById('webIntelBtn').addEventListener('click', function() {
+    const contextNotes = document.getElementById('contextNotes').value.trim();
+    
+    const data = {
+        location: '{{ investigation.location }}',
+        context_notes: contextNotes
+    };
+    
+    showAlert('Collecting web intelligence using LLM-powered search...', 'info');
+    
+    fetch(`/investigation/{{ investigation.id }}/web_intelligence`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message + '<br>Generated intelligent search queries using forensic context', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert(data.error || data.warning, data.error ? 'danger' : 'warning');
+        }
+    })
+    .catch(error => {
+        showAlert('Error collecting web intelligence: ' + error.message, 'danger');
+    });
+});
+
+function showAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    document.getElementById('alertContainer').innerHTML = alertHtml;
+}
+
+function deleteInvestigation() {
+    if (!confirm('Are you sure you want to delete this investigation? This will permanently remove all forensic events, OSINT data, and correlations. This action cannot be undone.')) {
+        return;
+    }
+    
+    showAlert('Deleting investigation...', 'info');
+    
+    fetch(`/api/investigation/{{ investigation.id }}/delete`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error deleting investigation: ' + error.message, 'danger');
+    });
+}
+</script>
+{% endblock %}
