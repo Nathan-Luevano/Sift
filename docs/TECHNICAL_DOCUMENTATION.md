@@ -44,7 +44,7 @@ Multi-source intelligence gathering with graceful degradation:
 - **News API Collection**: Multiple news sources via News API
 - **Web Intelligence Integration**: LLM-powered search query generation
 
-#### 5. Advanced Web Intelligence (`src/web_intelligence.py`)
+#### 5. Advanced Web Intelligence (`src/advanced_web_intelligence.py`)
 Enhanced web search and analysis capabilities:
 
 - **Multi-Engine Search**: Google API, SerpApi, unofficial Google search, DuckDuckGo
