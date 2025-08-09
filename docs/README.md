@@ -132,8 +132,8 @@ See `.env.example` for complete configuration options.
 
 ## Documentation
 
-- **[Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)** - Comprehensive architecture and implementation details
-- **[Setup Dependencies](docs/SETUP_DEPENDENCIES.md)** - Additional setup and dependency information
+- **[Technical Documentation](TECHNICAL_DOCUMENTATION.md)** - Comprehensive architecture and implementation details
+- **[Setup Dependencies](SETUP_DEPENDENCIES.md)** - Additional setup and dependency information
 
 
 ## Support
