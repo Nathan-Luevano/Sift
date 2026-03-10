@@ -4,7 +4,7 @@
 
 Sift is a Flask project I built to explore how digital forensics and OSINT can be reviewed side by side. The main idea is simple: load filesystem timeline data from an image, collect public-facing context, and look for overlaps in time, location, and keywords.
 
-This is still a personal/student project, so I kept the stack local and fairly plain:
+This is still a personal project, so I kept the stack local and fairly plain:
 
 - Flask for the UI
 - SQLite for storage
