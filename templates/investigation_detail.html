@@ -87,8 +87,8 @@
                         <h6>Intelligence Context <span class="text-muted">(Optional)</span></h6>
                         <div class="mb-3">
                             <textarea id="contextNotes" class="form-control" rows="4" 
-                                      placeholder="Enter additional context, background information, or specific intelligence requirements in markdown format. This will help guide the LLM analysis and web search queries.&#10;&#10;Example:&#10;- Suspected insider threat&#10;- Timeline around 2024-01-15&#10;- Look for social media activity&#10;- Check for data exfiltration patterns"></textarea>
-                            <div class="form-text">Markdown formatting supported. This context will enhance LLM analysis quality.</div>
+                                      placeholder="Optional notes for this run.&#10;&#10;Examples:&#10;- possible insider activity&#10;- focus on activity around 2024-01-15&#10;- check Reddit/news coverage&#10;- look for data exfiltration mentions"></textarea>
+                            <div class="form-text">These notes get passed into the LLM and web-intelligence steps when those features are enabled.</div>
                         </div>
                     </div>
                     
@@ -96,9 +96,9 @@
                         <h6>Investigation Actions</h6>
                         <div class="d-grid gap-2">
                             <button id="fullInvestigationBtn" class="btn btn-success btn-lg">
-                                <i class="fas fa-magic"></i> Run Full Investigation
+                                <i class="fas fa-gears"></i> Run Full Investigation
                             </button>
-                            <div class="form-text text-center mb-3">Processes all evidence, collects web intelligence using LLM, runs correlation analysis, and generates comprehensive insights</div>
+                            <div class="form-text text-center mb-3">Runs the full pipeline: web collection, correlation, and optional LLM summary.</div>
                             
                             <div class="row">
                                 <div class="col-6">
@@ -240,7 +240,7 @@ document.getElementById('evidenceForm').addEventListener('submit', function(e) {
             }
             if (data.warnings) {
                 message += '<br><br><strong>Warnings:</strong><br>' + 
-                          data.warnings.map(w => `⚠️ ${w}`).join('<br>');
+                          data.warnings.map(w => `Warning: ${w}`).join('<br>');
             }
             showAlert(message, 'success');
             setTimeout(() => location.reload(), 3000);
@@ -270,7 +270,7 @@ document.getElementById('fullInvestigationBtn').addEventListener('click', functi
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            let message = `<strong>Full Investigation Complete!</strong><br>${data.message}<br><br>`;
+            let message = `<strong>Investigation run complete</strong><br>${data.message}<br><br>`;
             if (data.results) {
                 message += `<strong>Results:</strong><br>`;
                 message += `• Forensic Events: ${data.results.forensic_events_count}<br>`;
@@ -327,7 +327,7 @@ document.getElementById('webIntelBtn').addEventListener('click', function() {
         context_notes: contextNotes
     };
     
-    showAlert('Collecting web intelligence using LLM-powered search...', 'info');
+    showAlert('Collecting web intelligence...', 'info');
     
     fetch(`/investigation/{{ investigation.id }}/web_intelligence`, {
         method: 'POST',
@@ -337,7 +337,7 @@ document.getElementById('webIntelBtn').addEventListener('click', function() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert(data.message + '<br>Generated intelligent search queries using forensic context', 'success');
+            showAlert(data.message, 'success');
             setTimeout(() => location.reload(), 2000);
         } else {
             showAlert(data.error || data.warning, data.error ? 'danger' : 'warning');

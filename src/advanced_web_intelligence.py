@@ -109,7 +109,7 @@ class AdvancedWebIntelligenceCollector:
         
         all_results = []
         
-        # first, generate smart queries
+        # Build search queries from the available context.
         search_queries = self._generate_advanced_search_queries(forensic_context, location, start_time, end_time)
         
         if not search_queries:
@@ -151,7 +151,7 @@ class AdvancedWebIntelligenceCollector:
     def _generate_advanced_search_queries(self, forensic_context: Dict, location: str, start_time: datetime, end_time: datetime) -> List[Dict[str, Any]]:
         queries = []
         
-        # let the LLM generate smart queries
+        # Use the LLM when it is available, then fall back to rule-based queries.
         if self.llm_client and self.llm_client.is_available():
             llm_queries = self._generate_llm_queries(forensic_context, location, start_time, end_time)
             queries.extend(llm_queries)
@@ -334,13 +334,13 @@ Return as JSON array:"""
             # Google usually gives the best results
             if self.config.GOOGLE_SEARCH_API_KEY:
                 results.extend(self._search_google_api(query))
-                time.sleep(1)  # be nice to the APIs
+                time.sleep(1)
             elif self.config.SERPAPI_KEY:
                 results.extend(self._search_serpapi(query))
                 time.sleep(1)
             else:
                 results.extend(self._search_google(query))
-                time.sleep(2)  # unofficial APIs need more breathing room
+                time.sleep(2)
             
             # DDG as backup
             results.extend(self._search_duckduckgo(query))
@@ -997,8 +997,6 @@ Provide detailed analysis as JSON:"""
         return top_results
     
     def _calculate_evidence_based_relevance(self, result: Dict[str, Any], forensic_context: Dict) -> float:
-        """Calculate relevance score based on forensic evidence correlation"""
-        
         content = result.get('content', '').lower()
         title = result.get('title', '').lower()
         url = result.get('url', '').lower()
@@ -1081,8 +1079,6 @@ Provide detailed analysis as JSON:"""
         return min(relevance_score, 10.0)  # Cap at 10
     
     def _generate_relevance_explanation(self, result: Dict[str, Any], forensic_context: Dict) -> str:
-        """Generate human-readable explanation of why content is relevant"""
-        
         explanations = []
         
         # Check LLM analysis

@@ -1,7 +1,6 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from geopy.distance import geodesic
-import pandas as pd
 from collections import defaultdict
 import re
 from llm_client import OllamaClient
@@ -76,19 +75,24 @@ class CorrelationEngine:
         return correlations
     
     def _ensure_datetime(self, timestamp):
-        """Ensure timestamp is a datetime object, converting from string if necessary"""
+        dt = None
+
         if isinstance(timestamp, datetime):
-            return timestamp
+            dt = timestamp
         elif isinstance(timestamp, str):
             try:
-                return parse_date(timestamp)
+                dt = parse_date(timestamp)
             except Exception as e:
                 logger.warning(f"Failed to parse timestamp '{timestamp}': {e}")
-                # just use now if parsing fails
-                return datetime.now()
+                dt = datetime.utcnow()
         else:
             logger.warning(f"Invalid timestamp type: {type(timestamp)}")
-            return datetime.now()
+            dt = datetime.utcnow()
+
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+        return dt
     
     def _calculate_spatial_proximity(self, location, coordinates):
         try:
@@ -110,31 +114,24 @@ class CorrelationEngine:
             return None
     
     def _calculate_content_relevance(self, forensic_event, osint_item):
-        # see if the LLM can help us figure out relevance
         if self.llm_client and self.llm_client.is_available():
             try:
                 llm_analysis = self.llm_client.analyze_correlation_relevance(forensic_event, osint_item.get('content', ''))
                 if llm_analysis and 'correlation_score' in llm_analysis:
-                    llm_score = llm_analysis['correlation_score'] / 10.0  # normalize to 0-1
-                    
-                    # save this analysis so we can use it later
+                    llm_score = llm_analysis['correlation_score'] / 10.0
+
                     if 'llm_analysis' not in osint_item:
                         osint_item['llm_analysis'] = llm_analysis
-                    
-                    # blend LLM insights with old school methods
+
                     traditional_score = self._calculate_traditional_relevance(forensic_event, osint_item)
-                    
-                    # trust the LLM more but don't ignore the basics
                     combined_score = (llm_score * 0.7) + (traditional_score * 0.3)
                     return min(combined_score, 1.0)
             except Exception as e:
                 logger.debug(f"LLM correlation analysis failed: {e}")
-        
-        # if LLM isn't available, do it the old way
+
         return self._calculate_traditional_relevance(forensic_event, osint_item)
     
     def _calculate_traditional_relevance(self, forensic_event, osint_item):
-        # good old fashioned text matching
         relevance_score = 0.0
         
         forensic_path = forensic_event.get('file_path', '').lower()
@@ -242,8 +239,8 @@ class CorrelationEngine:
                     }
                 }
                 timeline.append(timeline_entry)
-        
-        timeline.sort(key=lambda x: x['timestamp'])
+
+        timeline.sort(key=lambda x: self._ensure_datetime(x['timestamp']))
         return timeline
     
     def generate_correlation_report(self, correlations):
@@ -280,7 +277,7 @@ class CorrelationEngine:
             'top_correlations': [
                 {
                     'forensic_file': c['forensic_event']['file_path'],
-                    'forensic_timestamp': c['forensic_event']['timestamp'].isoformat(),
+                    'forensic_timestamp': self._ensure_datetime(c['forensic_event']['timestamp']).isoformat(),
                     'correlation_strength': c['correlation_strength'],
                     'osint_matches': len(c['osint_correlations']),
                     'top_osint_content': c['osint_correlations'][0]['osint_item']['content'][:200] + '...' if c['osint_correlations'] else ''
@@ -306,16 +303,20 @@ class CorrelationEngine:
     def _cluster_by_time(self, correlations):
         clusters = []
         current_cluster = []
-        
-        sorted_correlations = sorted(correlations, key=lambda x: x['forensic_event']['timestamp'])
+
+        sorted_correlations = sorted(
+            correlations,
+            key=lambda x: self._ensure_datetime(x['forensic_event']['timestamp']),
+        )
         
         for i, correlation in enumerate(sorted_correlations):
             if not current_cluster:
                 current_cluster.append(correlation)
             else:
+                current_time = self._ensure_datetime(correlation['forensic_event']['timestamp'])
+                previous_time = self._ensure_datetime(current_cluster[-1]['forensic_event']['timestamp'])
                 time_diff = abs(
-                    (correlation['forensic_event']['timestamp'] - 
-                     current_cluster[-1]['forensic_event']['timestamp']).total_seconds()
+                    (current_time - previous_time).total_seconds()
                 ) / 3600
                 
                 if time_diff <= 2:
@@ -384,16 +385,13 @@ class CorrelationEngine:
         return dict(source_patterns)
     
     def generate_llm_investigation_summary(self, correlations, forensic_summary_data, osint_summary_data, context_notes=""):
-        # let the LLM write us a nice summary
-        
         if not self.llm_client or not self.llm_client.is_available():
             return "LLM-powered analysis not available"
         
         try:
             forensic_summary = f"Forensic Analysis: {len(forensic_summary_data)} events processed" if isinstance(forensic_summary_data, list) else str(forensic_summary_data)
             osint_summary = f"OSINT Collection: {len(osint_summary_data)} items collected" if isinstance(osint_summary_data, list) else str(osint_summary_data)
-            
-            # add any extra context if we have it
+
             if context_notes.strip():
                 context_info = f"\n\nAdditional Context Notes: {context_notes}"
             else:
@@ -412,8 +410,6 @@ class CorrelationEngine:
             return "Unable to generate LLM-powered investigation summary"
     
     def analyze_correlation_patterns_with_llm(self, correlations):
-        # have the LLM look for patterns we might miss
-        
         if not self.llm_client or not self.llm_client.is_available():
             return None
         
@@ -421,9 +417,8 @@ class CorrelationEngine:
             return None
         
         try:
-            # format the correlations for the LLM
             correlation_summaries = []
-            for corr in correlations[:10]:  # just the top ones to keep it manageable
+            for corr in correlations[:10]:
                 forensic_event = corr['forensic_event']
                 top_osint = corr['osint_correlations'][0] if corr['osint_correlations'] else None
                 

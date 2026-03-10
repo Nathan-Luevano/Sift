@@ -1,0 +1,11 @@
+name: sift
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - libxml2
+  - libxslt
+  - pip:
+      - -r requirements.txt
+

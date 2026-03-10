@@ -2,6 +2,7 @@ flask>=2.3.3
 pytsk3>=20230125
 python-dateutil>=2.8.2
 requests>=2.31.0
+chardet<6
 geopy>=2.4.0
 folium>=0.14.0
 pandas>=2.1.0
@@ -26,5 +27,4 @@ googlesearch-python>=1.2.3
 serpapi>=0.1.5
 pytrends>=4.9.2
 google-api-python-client>=2.100.0
-reddit-search>=1.0.0
 requests-cache>=1.1.0

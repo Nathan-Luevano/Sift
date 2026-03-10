@@ -2,11 +2,10 @@ import requests
 import tweepy
 import praw
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from geopy.geocoders import Nominatim
 from bs4 import BeautifulSoup
 import time
-import json
 from advanced_web_intelligence import AdvancedWebIntelligenceCollector
 
 logger = logging.getLogger(__name__)
@@ -68,6 +67,18 @@ class OSINTCollector:
             
         except Exception as e:
             logger.error(f"Reddit API setup failed: {e}")
+
+    def _normalize_datetime(self, value):
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+
+        if value.tzinfo is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+        return value
     
     def collect_twitter_data(self, location, start_time, end_time, keywords=None):
         if not self.twitter_api:
@@ -75,6 +86,8 @@ class OSINTCollector:
             return []
             
         try:
+            start_time = self._normalize_datetime(start_time)
+            end_time = self._normalize_datetime(end_time)
             geocode = self._get_geocode(location)
             if not geocode:
                 logger.error(f"Could not geocode location: {location}")
@@ -99,10 +112,11 @@ class OSINTCollector:
                 tweet_mode='extended',
                 result_type='mixed'
             ).items(self.config.MAX_OSINT_RESULTS):
-                
-                if start_time <= tweet.created_at <= end_time:
+                tweet_time = self._normalize_datetime(tweet.created_at)
+
+                if start_time <= tweet_time <= end_time:
                     tweets.append({
-                        'timestamp': tweet.created_at,
+                        'timestamp': tweet_time,
                         'source': 'twitter',
                         'content': tweet.full_text,
                         'author': tweet.author.screen_name,
@@ -133,6 +147,8 @@ class OSINTCollector:
             return []
             
         try:
+            start_time = self._normalize_datetime(start_time)
+            end_time = self._normalize_datetime(end_time)
             posts = []
             search_terms = keywords if keywords else [""]
             target_subreddits = subreddits if subreddits else ["all"]
@@ -148,7 +164,9 @@ class OSINTCollector:
                             sort="new",
                             limit=self.config.MAX_OSINT_RESULTS // len(target_subreddits) // len(search_terms)
                         ):
-                            post_time = datetime.fromtimestamp(submission.created_utc)
+                            post_time = self._normalize_datetime(
+                                datetime.fromtimestamp(submission.created_utc, tz=timezone.utc)
+                            )
                             
                             if start_time <= post_time <= end_time:
                                 posts.append({
@@ -199,6 +217,8 @@ class OSINTCollector:
     
     def _collect_newsapi_data(self, location, start_time, end_time, keywords):
         try:
+            start_time = self._normalize_datetime(start_time)
+            end_time = self._normalize_datetime(end_time)
             url = "https://newsapi.org/v2/everything"
             
             query_parts = [location]
@@ -225,7 +245,7 @@ class OSINTCollector:
             articles = []
             
             for article in data.get('articles', []):
-                pub_date = datetime.fromisoformat(article['publishedAt'].replace('Z', '+00:00'))
+                pub_date = self._normalize_datetime(article['publishedAt'])
                 
                 articles.append({
                     'timestamp': pub_date,
@@ -251,6 +271,8 @@ class OSINTCollector:
     
     def _collect_google_news_data(self, location, start_time, end_time, keywords):
         try:
+            start_time = self._normalize_datetime(start_time)
+            end_time = self._normalize_datetime(end_time)
             articles = []
             
             query_parts = [location]
@@ -272,7 +294,9 @@ class OSINTCollector:
             for item in soup.find_all('item')[:min(50, self.config.MAX_OSINT_RESULTS)]:
                 try:
                     pub_date_str = item.pubDate.text
-                    pub_date = datetime.strptime(pub_date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                    pub_date = self._normalize_datetime(
+                        datetime.strptime(pub_date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                    )
                     
                     if start_time <= pub_date <= end_time:
                         articles.append({
@@ -327,14 +351,11 @@ class OSINTCollector:
         return None
     
     def collect_web_intelligence(self, forensic_context, location, start_time, end_time, keywords=None, context_notes=""):
-        # this is where the magic happens - LLM helps us find relevant stuff
-        
         if not self.web_intelligence:
             logger.warning("Web intelligence collection is disabled")
             return []
         
         try:
-            # prep the forensic data for the LLM to understand
             context = {
                 'location': location,
                 'timeframe': f"{start_time} to {end_time}",
@@ -343,7 +364,6 @@ class OSINTCollector:
             }
             
             if isinstance(forensic_context, list) and forensic_context:
-                # pull out the interesting bits from forensic data
                 file_types = list(set(event.get('file_type', 'unknown') for event in forensic_context))
                 event_types = list(set(event.get('event_type', 'unknown') for event in forensic_context))
                 suspicious_files = [
@@ -355,7 +375,7 @@ class OSINTCollector:
                 context.update({
                     'file_types': file_types,
                     'event_types': event_types,
-                    'suspicious_files': suspicious_files[:10]  # don't want to overwhelm the LLM
+                    'suspicious_files': suspicious_files[:10]
                 })
             
             logger.info("Starting advanced LLM-powered web intelligence collection with context notes")
@@ -376,8 +396,7 @@ class OSINTCollector:
         all_data = []
         
         logger.info(f"Collecting OSINT data for {location} from {start_time} to {end_time}")
-        
-        # good old fashioned API scraping
+
         twitter_data = self.collect_twitter_data(location, start_time, end_time, keywords)
         all_data.extend(twitter_data)
         logger.info(f"Collected {len(twitter_data)} Twitter posts")
@@ -389,8 +408,7 @@ class OSINTCollector:
         news_data = self.collect_news_data(location, start_time, end_time, keywords)
         all_data.extend(news_data)
         logger.info(f"Collected {len(news_data)} news articles")
-        
-        # now for the smart stuff - let the LLM help us search
+
         if self.config.WEB_SEARCH_ENABLE and forensic_context:
             web_intelligence_data = self.collect_web_intelligence(
                 forensic_context, location, start_time, end_time, keywords

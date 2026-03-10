@@ -2,7 +2,6 @@ import ollama
 import logging
 import json
 from typing import Dict, List, Optional, Any
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +20,11 @@ class OllamaClient:
     def _initialize_client(self):
         try:
             self.client = ollama.Client(host=self.config.OLLAMA_HOST)
-            
-            # gotta make sure the connection actually works
+
             try:
                 models_response = self.client.list()
                 available_models = []
-                
-                # ollama likes to return different formats sometimes
+
                 if isinstance(models_response, dict):
                     if 'models' in models_response:
                         for model in models_response['models']:
@@ -47,26 +44,23 @@ class OllamaClient:
                             available_models.append(str(model))
                 
                 logger.info(f"Available models: {available_models}")
-                
-                # see if our model is actually installed
+
                 model_available = False
                 for available_model in available_models:
                     if self.model in available_model or available_model.startswith(self.model.split(':')[0]):
                         model_available = True
-                        self.model = available_model  # use the exact name it wants
+                        self.model = available_model
                         break
                 
                 if not model_available:
                     logger.warning(f"Model {self.model} not found. Available models: {available_models}")
-                    
-                    # model not found, let's try downloading it
+
                     logger.info(f"Attempting to pull model {self.model}")
                     try:
                         self.client.pull(self.model)
                         logger.info(f"Successfully pulled model {self.model}")
                     except Exception as e:
                         logger.error(f"Failed to pull model {self.model}: {e}")
-                        # if download fails, we'll try something else
                         if available_models:
                             logger.info(f"Using first available model: {available_models[0]}")
                             self.model = available_models[0]
@@ -77,8 +71,7 @@ class OllamaClient:
                 
             except Exception as e:
                 logger.error(f"Error checking models: {e}")
-                # one last attempt to see if it's working
-                test_response = self.client.generate(model=self.model, prompt="test", stream=False)
+                self.client.generate(model=self.model, prompt="test", stream=False)
                 logger.info("Ollama connection test successful")
             
         except Exception as e:
@@ -157,13 +150,11 @@ Provide analysis as JSON:"""
         try:
             response = self.generate(prompt, system_prompt, max_tokens=2048)
             if response:
-                # hopefully the LLM gave us proper JSON
                 import re
                 json_match = re.search(r'\{.*\}', response, re.DOTALL)
                 if json_match:
                     return json.loads(json_match.group())
                 else:
-                    # fallback if the LLM didn't cooperate
                     return {
                         "summary": response[:200],
                         "temporal_indicators": [],
@@ -212,7 +203,7 @@ Generate search queries prioritized by specificity and evidence correlation pote
             response = self.generate(prompt, system_prompt, max_tokens=1024)
             if response:
                 queries = [q.strip() for q in response.split('\n') if q.strip() and not q.strip().startswith('#')]
-                return queries[:12]  # don't want too many queries
+                return queries[:12]
         except Exception as e:
             logger.error(f"Error generating search queries: {e}")
             

@@ -1,7 +1,6 @@
 import sqlite3
 import json
 import logging
-from datetime import datetime
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
@@ -103,6 +102,7 @@ class DatabaseManager:
     def get_connection(self):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        conn.execute('PRAGMA foreign_keys = ON')
         try:
             yield conn
         finally:
@@ -195,7 +195,12 @@ class DatabaseManager:
     def save_correlations(self, investigation_id, correlations):
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
+            cursor.execute(
+                'DELETE FROM correlations WHERE investigation_id = ?',
+                (investigation_id,),
+            )
+
             forensic_event_map = self._get_forensic_event_map(investigation_id)
             osint_data_map = self._get_osint_data_map(investigation_id)
             
@@ -318,8 +323,8 @@ class DatabaseManager:
             
             for row in cursor.fetchall():
                 item = dict(row)
-                
-                if item['coordinates_lat'] and item['coordinates_lon']:
+
+                if item['coordinates_lat'] is not None and item['coordinates_lon'] is not None:
                     item['coordinates'] = {
                         'lat': item['coordinates_lat'],
                         'lon': item['coordinates_lon']
@@ -388,20 +393,12 @@ class DatabaseManager:
             }
     
     def delete_investigation(self, investigation_id):
-        # nuke everything related to this investigation
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
-            # correlations have to go first or SQLite gets mad
+
             cursor.execute('DELETE FROM correlations WHERE investigation_id = ?', (investigation_id,))
-            
-            # clean up the forensic stuff
             cursor.execute('DELETE FROM forensic_events WHERE investigation_id = ?', (investigation_id,))
-            
-            # and the OSINT data too
             cursor.execute('DELETE FROM osint_data WHERE investigation_id = ?', (investigation_id,))
-            
-            # now we can delete the main investigation
             cursor.execute('DELETE FROM investigations WHERE id = ?', (investigation_id,))
             
             if cursor.rowcount == 0:

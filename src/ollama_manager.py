@@ -1,9 +1,6 @@
 import ollama
 import logging
-import json
 from typing import Dict, List, Optional, Any
-import requests
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +52,13 @@ class OllamaModelManager:
                 'use_case': 'Maximum accuracy, professional investigations'
             }
         ]
-        
-        self._initialize_client()
+
+        if self.config.OLLAMA_ENABLE:
+            self._initialize_client()
     
     def _initialize_client(self):
-        # set up connection to ollama
         try:
             self.client = ollama.Client(host=self.config.OLLAMA_HOST)
-            # make sure it's actually working
             self.client.list()
             logger.info("Ollama model manager initialized")
         except Exception as e:
@@ -70,7 +66,9 @@ class OllamaModelManager:
             self.client = None
     
     def is_ollama_available(self) -> bool:
-        # see if ollama is up and responding
+        if not self.config.OLLAMA_ENABLE:
+            return False
+
         try:
             if not self.client:
                 self._initialize_client()
@@ -84,7 +82,6 @@ class OllamaModelManager:
         return False
     
     def get_installed_models(self) -> List[Dict[str, Any]]:
-        # find out what models we have
         if not self.is_ollama_available():
             return []
         
@@ -113,15 +110,12 @@ class OllamaModelManager:
             return []
     
     def get_recommended_models(self) -> List[Dict[str, Any]]:
-        # models that work well for this kind of analysis
         return self.recommended_models.copy()
     
     def get_model_status(self) -> Dict[str, Any]:
-        # full status of all our models
         installed_models = self.get_installed_models()
         recommended_models = self.get_recommended_models()
-        
-        # figure out which recommended ones we actually have
+
         installed_names = [m['name'] for m in installed_models]
         for model in recommended_models:
             model['installed'] = model['name'] in installed_names
@@ -129,14 +123,14 @@ class OllamaModelManager:
         
         current_model = self.config.OLLAMA_MODEL
         current_model_info = None
-        
-        # get details on what we're currently using
+
         for model in installed_models:
             if model['name'] == current_model or model['name'].startswith(current_model.split(':')[0]):
                 current_model_info = model
                 break
         
         return {
+            'ollama_enabled': self.config.OLLAMA_ENABLE,
             'ollama_available': self.is_ollama_available(),
             'ollama_host': self.config.OLLAMA_HOST,
             'current_model': current_model,
@@ -148,15 +142,12 @@ class OllamaModelManager:
         }
     
     def pull_model(self, model_name: str) -> Dict[str, Any]:
-        # download a model from ollama
         if not self.is_ollama_available():
             return {'success': False, 'error': 'Ollama not available'}
         
         try:
             logger.info(f"Starting pull for model: {model_name}")
-            
-            # kick off the download
-            pull_response = self.client.pull(model_name)
+            self.client.pull(model_name)
             
             return {
                 'success': True,
@@ -173,7 +164,6 @@ class OllamaModelManager:
             }
     
     def delete_model(self, model_name: str) -> Dict[str, Any]:
-        # remove a model we don't need
         if not self.is_ollama_available():
             return {'success': False, 'error': 'Ollama not available'}
         
@@ -195,7 +185,6 @@ class OllamaModelManager:
             }
     
     def test_model(self, model_name: str) -> Dict[str, Any]:
-        # quick test to see if model works
         if not self.is_ollama_available():
             return {'success': False, 'error': 'Ollama not available'}
         
@@ -226,9 +215,7 @@ class OllamaModelManager:
             }
     
     def set_active_model(self, model_name: str) -> Dict[str, Any]:
-        # switch to using a different model
         try:
-            # make sure the model is actually installed
             installed_models = self.get_installed_models()
             model_exists = any(m['name'] == model_name for m in installed_models)
             
@@ -238,7 +225,6 @@ class OllamaModelManager:
                     'error': f'Model {model_name} is not installed'
                 }
             
-            # check that it actually works
             test_result = self.test_model(model_name)
             if not test_result['success']:
                 return {
@@ -246,7 +232,6 @@ class OllamaModelManager:
                     'error': f'Model {model_name} failed test: {test_result["error"]}'
                 }
             
-            # change the active model (only for this session)
             self.config.OLLAMA_MODEL = model_name
             
             return {
@@ -263,14 +248,12 @@ class OllamaModelManager:
             }
     
     def get_model_info(self, model_name: str) -> Optional[Dict[str, Any]]:
-        # full details on a particular model
         installed_models = self.get_installed_models()
         
         for model in installed_models:
             if model['name'] == model_name:
                 return model
         
-        # see if this is one of our recommended ones
         for model in self.recommended_models:
             if model['name'] == model_name:
                 model_info = model.copy()
@@ -281,7 +264,6 @@ class OllamaModelManager:
         return None
     
     def format_model_size(self, size_bytes: int) -> str:
-        # make file sizes readable (MB/GB)
         if size_bytes < 1024**3:
             return f"{size_bytes / (1024**2):.1f} MB"
         else:

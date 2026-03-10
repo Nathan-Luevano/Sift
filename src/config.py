@@ -30,26 +30,23 @@ class Config:
         self.MAX_CORRELATION_DISTANCE_KM = float(os.getenv('MAX_CORRELATION_DISTANCE_KM', 50))
         self.CORRELATION_TIME_WINDOW_HOURS = int(os.getenv('CORRELATION_TIME_WINDOW_HOURS', 24))
         self.MAX_OSINT_RESULTS = int(os.getenv('MAX_OSINT_RESULTS', 1000))
-        
-        # local LLM settings
+
         self.OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         self.OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'gemma:4b')
         self.OLLAMA_TIMEOUT = int(os.getenv('OLLAMA_TIMEOUT', 120))
         self.OLLAMA_ENABLE = os.getenv('OLLAMA_ENABLE', 'True').lower() == 'true'
-        
-        # web search settings
+
         self.WEB_SEARCH_ENABLE = os.getenv('WEB_SEARCH_ENABLE', 'True').lower() == 'true'
         self.WEB_SEARCH_ENGINE = os.getenv('WEB_SEARCH_ENGINE', 'google')
         self.WEB_SEARCH_MAX_RESULTS = int(os.getenv('WEB_SEARCH_MAX_RESULTS', 50))
         self.WEB_SEARCH_TIMEOUT = int(os.getenv('WEB_SEARCH_TIMEOUT', 45))
         self.WEB_SCRAPE_TIMEOUT = int(os.getenv('WEB_SCRAPE_TIMEOUT', 20))
         self.WEB_SCRAPE_MAX_PAGES = int(os.getenv('WEB_SCRAPE_MAX_PAGES', 15))
-        
-        # fancy search options
+
         self.GOOGLE_SEARCH_ENGINE_ID = os.getenv('GOOGLE_SEARCH_ENGINE_ID', '')
         self.GOOGLE_SEARCH_API_KEY = os.getenv('GOOGLE_SEARCH_API_KEY', '')
         self.SERPAPI_KEY = os.getenv('SERPAPI_KEY', '')
-        
+
         self.SEARCH_DEPTH = os.getenv('SEARCH_DEPTH', 'deep')
         self.SEARCH_STRATEGY = os.getenv('SEARCH_STRATEGY', 'multi_engine')
         self.ENABLE_SOCIAL_SEARCH = os.getenv('ENABLE_SOCIAL_SEARCH', 'True').lower() == 'true'
@@ -58,19 +55,19 @@ class Config:
         self.SEARCH_LANGUAGES = os.getenv('SEARCH_LANGUAGES', 'en').split(',')
         self.SEARCH_REGIONS = os.getenv('SEARCH_REGIONS', 'us').split(',')
         self.ENABLE_REVERSE_IMAGE_SEARCH = os.getenv('ENABLE_REVERSE_IMAGE_SEARCH', 'True').lower() == 'true'
-        
-        # selenium browser settings
+
         self.BROWSER_HEADLESS = os.getenv('BROWSER_HEADLESS', 'True').lower() == 'true'
         self.BROWSER_TIMEOUT = int(os.getenv('BROWSER_TIMEOUT', 30))
         self.BROWSER_USER_AGENT = os.getenv('BROWSER_USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-        
-        # how the LLM should behave
+
         self.LLM_MAX_TOKENS = int(os.getenv('LLM_MAX_TOKENS', 4096))
         self.LLM_TEMPERATURE = float(os.getenv('LLM_TEMPERATURE', 0.3))
         self.LLM_CONTEXT_WINDOW = int(os.getenv('LLM_CONTEXT_WINDOW', 8192))
-        
-        os.makedirs(os.path.dirname(self.LOG_FILE), exist_ok=True)
-        
+
+        log_dir = os.path.dirname(self.LOG_FILE)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+
         logging.basicConfig(
             level=self.LOG_LEVEL,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

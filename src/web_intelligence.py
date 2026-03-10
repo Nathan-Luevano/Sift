@@ -62,8 +62,8 @@ class WebIntelligenceCollector:
         
         logger.info("Starting LLM-powered web intelligence collection")
         
-        # let the LLM come up with smart search queries
-        search_queries = self._generate_smart_search_queries(forensic_context, location, start_time, end_time)
+        # Generate search queries from the forensic context.
+        search_queries = self._generate_contextual_search_queries(forensic_context, location, start_time, end_time)
         
         if not search_queries:
             logger.warning("No search queries generated")
@@ -108,14 +108,10 @@ class WebIntelligenceCollector:
         
         return ranked_results[:self.config.MAX_OSINT_RESULTS]
     
-    def _generate_smart_search_queries(self, forensic_context: Dict, location: str, start_time: datetime, end_time: datetime) -> List[str]:
-        # have the LLM generate smart queries based on what we found
-        
+    def _generate_contextual_search_queries(self, forensic_context: Dict, location: str, start_time: datetime, end_time: datetime) -> List[str]:
         if not self.llm_client or not self.llm_client.is_available():
-            # use simple queries if LLM isn't working
             return self._generate_basic_queries(forensic_context, location)
         
-        # prep the context for the LLM
         context_parts = []
         
         if forensic_context:
@@ -141,7 +137,6 @@ class WebIntelligenceCollector:
         except Exception as e:
             logger.error(f"Error generating LLM queries: {e}")
         
-        # LLM didn't work, use basic queries
         return self._generate_basic_queries(forensic_context, location)
     
     def _generate_basic_queries(self, forensic_context: Dict, location: str) -> List[str]:
@@ -213,7 +208,6 @@ class WebIntelligenceCollector:
             return None
         
         try:
-            # newspaper3k usually works well for articles
             content = self._extract_with_newspaper(url)
             
             if not content:

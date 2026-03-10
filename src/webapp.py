@@ -7,6 +7,7 @@ import folium
 import plotly.graph_objs as go
 import plotly.utils
 from werkzeug.utils import secure_filename
+from dateutil.parser import parse as parse_date
 
 from config import config
 from database import DatabaseManager
@@ -25,6 +26,33 @@ forensic_analyzer = ForensicAnalyzer()
 osint_collector = OSINTCollector(config)
 correlation_engine = CorrelationEngine(config)
 ollama_manager = OllamaModelManager(config)
+
+
+def _parse_request_datetime(value, default=None):
+    if not value:
+        return default
+
+    return parse_date(value)
+
+
+def _geocode_location(location):
+    if not location:
+        return None
+
+    try:
+        from geopy.geocoders import Nominatim
+
+        geolocator = Nominatim(user_agent=config.REDDIT_USER_AGENT)
+        location_obj = geolocator.geocode(location)
+        if location_obj:
+            return {
+                'lat': location_obj.latitude,
+                'lon': location_obj.longitude,
+            }
+    except Exception as e:
+        logger.warning(f"Could not geocode location '{location}': {e}")
+
+    return None
 
 @app.route('/')
 def index():
@@ -139,16 +167,18 @@ def upload_evidence(investigation_id):
 @app.route('/investigation/<int:investigation_id>/collect_osint', methods=['POST'])
 def collect_osint(investigation_id):
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         location = data.get('location')
-        start_time = datetime.fromisoformat(data.get('start_time'))
-        end_time = datetime.fromisoformat(data.get('end_time'))
-        keywords = data.get('keywords', [])
-        subreddits = data.get('subreddits', [])
+        start_time = _parse_request_datetime(data.get('start_time'))
+        end_time = _parse_request_datetime(data.get('end_time'))
+        keywords = data.get('keywords') or []
+        subreddits = data.get('subreddits') or []
+
+        if not start_time or not end_time:
+            return jsonify({'error': 'start_time and end_time are required'}), 400
         
         logger.info(f"Collecting OSINT data for investigation {investigation_id}")
-        
-        # grab forensic data to help the LLM search smarter
+
         forensic_events = db_manager.get_forensic_events(investigation_id)
         
         osint_data = osint_collector.collect_all_sources(
@@ -188,19 +218,7 @@ def run_correlation(investigation_id):
         if not forensic_events or not osint_data:
             return jsonify({'error': 'Need both forensic events and OSINT data to run correlation'}), 400
         
-        location_data = None
-        if investigation['location']:
-            try:
-                from geopy.geocoders import Nominatim
-                geolocator = Nominatim(user_agent=config.REDDIT_USER_AGENT)
-                location_obj = geolocator.geocode(investigation['location'])
-                if location_obj:
-                    location_data = {
-                        'lat': location_obj.latitude,
-                        'lon': location_obj.longitude
-                    }
-            except Exception as e:
-                logger.warning(f"Could not geocode location: {e}")
+        location_data = _geocode_location(investigation['location'])
         
         correlations = correlation_engine.correlate_forensic_osint(
             forensic_events, osint_data, location_data
@@ -210,8 +228,7 @@ def run_correlation(investigation_id):
             db_manager.save_correlations(investigation_id, correlations)
             
             correlation_report = correlation_engine.generate_correlation_report(correlations)
-            
-            # throw in some LLM analysis if we can
+
             llm_insights = None
             if config.OLLAMA_ENABLE:
                 try:
@@ -282,15 +299,9 @@ def map_view(investigation_id):
     osint_data = db_manager.get_osint_data(investigation_id)
     
     center_lat, center_lon = 39.8283, -98.5795
-    if investigation['location']:
-        try:
-            from geopy.geocoders import Nominatim
-            geolocator = Nominatim(user_agent=config.REDDIT_USER_AGENT)
-            location_obj = geolocator.geocode(investigation['location'])
-            if location_obj:
-                center_lat, center_lon = location_obj.latitude, location_obj.longitude
-        except Exception as e:
-            logger.warning(f"Could not geocode location: {e}")
+    location_data = _geocode_location(investigation['location'])
+    if location_data:
+        center_lat, center_lon = location_data['lat'], location_data['lon']
     
     map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10)
     
@@ -410,7 +421,6 @@ def export_investigation(investigation_id):
 
 @app.route('/investigation/<int:investigation_id>/llm_analysis', methods=['POST'])
 def run_llm_analysis(investigation_id):
-    # let the LLM analyze everything we've got
     try:
         if not config.OLLAMA_ENABLE:
             return jsonify({'error': 'LLM analysis is disabled'}), 400
@@ -426,7 +436,6 @@ def run_llm_analysis(investigation_id):
         if not forensic_events and not osint_data:
             return jsonify({'error': 'No data available for analysis'}), 400
         
-        # have the LLM write up a full analysis
         llm_summary = correlation_engine.generate_llm_investigation_summary(
             correlations, forensic_events, osint_data
         )
@@ -435,7 +444,6 @@ def run_llm_analysis(investigation_id):
         if correlations:
             llm_insights = correlation_engine.analyze_correlation_patterns_with_llm(correlations)
         
-        # see if there are any web trends to analyze
         web_trends = None
         if any(item.get('source') == 'web_intelligence' for item in osint_data):
             try:
@@ -468,7 +476,6 @@ def run_llm_analysis(investigation_id):
 
 @app.route('/investigation/<int:investigation_id>/full_investigation', methods=['POST'])
 def run_full_investigation(investigation_id):
-    """Run complete investigation analysis on all uploaded evidence"""
     try:
         investigation = db_manager.get_investigation(investigation_id)
         if not investigation:
@@ -482,15 +489,13 @@ def run_full_investigation(investigation_id):
         context_notes = data.get('context_notes', '')
         
         logger.info(f"Running full investigation for investigation {investigation_id}")
-        
-        # first, let's gather some web intelligence
+
         if config.WEB_SEARCH_ENABLE and config.OLLAMA_ENABLE:
             try:
-                # have the LLM create smart searches from our evidence
                 web_intel_data = osint_collector.collect_web_intelligence(
                     forensic_context=forensic_events,
                     location=investigation.get('location', ''),
-                    start_time=datetime.now() - timedelta(days=30),  # last 30 days seems reasonable
+                    start_time=datetime.now() - timedelta(days=30),
                     end_time=datetime.now(),
                     context_notes=context_notes
                 )
@@ -500,23 +505,9 @@ def run_full_investigation(investigation_id):
                     logger.info(f"Collected {len(web_intel_data)} web intelligence items")
             except Exception as e:
                 logger.warning(f"Web intelligence collection failed: {e}")
-        
-        # now let's see what correlates
+
         osint_data = db_manager.get_osint_data(investigation_id)
-        location_data = None
-        
-        if investigation.get('location'):
-            try:
-                from geopy.geocoders import Nominatim
-                geolocator = Nominatim(user_agent=config.REDDIT_USER_AGENT)
-                location_obj = geolocator.geocode(investigation['location'])
-                if location_obj:
-                    location_data = {
-                        'lat': location_obj.latitude,
-                        'lon': location_obj.longitude
-                    }
-            except Exception as e:
-                logger.warning(f"Could not geocode location: {e}")
+        location_data = _geocode_location(investigation.get('location'))
         
         correlations = []
         if osint_data:
@@ -527,17 +518,14 @@ def run_full_investigation(investigation_id):
             if correlations:
                 db_manager.save_correlations(investigation_id, correlations)
                 logger.info(f"Found {len(correlations)} correlations")
-        
-        # time for the LLM to work its magic
+
         analysis_results = {}
         if config.OLLAMA_ENABLE:
             try:
-                # have the LLM write up what it found
                 llm_summary = correlation_engine.generate_llm_investigation_summary(
                     correlations, forensic_events, osint_data, context_notes
                 )
-                
-                # look for patterns in the correlations
+
                 llm_insights = None
                 if correlations:
                     llm_insights = correlation_engine.analyze_correlation_patterns_with_llm(correlations)
@@ -551,8 +539,7 @@ def run_full_investigation(investigation_id):
                 }
             except Exception as e:
                 logger.warning(f"LLM analysis failed: {e}")
-        
-        # package up the results
+
         response_data = {
             'success': True,
             'message': f'Full investigation completed successfully',
@@ -572,22 +559,19 @@ def run_full_investigation(investigation_id):
 
 @app.route('/investigation/<int:investigation_id>/web_intelligence', methods=['POST'])
 def collect_web_intelligence(investigation_id):
-    """Collect web intelligence using LLM-powered search with context notes"""
     try:
         if not config.WEB_SEARCH_ENABLE:
             return jsonify({'error': 'Web intelligence collection is disabled'}), 400
         
-        data = request.json
+        data = request.get_json(silent=True) or {}
         location = data.get('location', '')
         start_time_str = data.get('start_time')
         end_time_str = data.get('end_time')
         context_notes = data.get('context_notes', '')
-        
-        # set some defaults if user didn't specify
-        start_time = datetime.fromisoformat(start_time_str) if start_time_str else datetime.now() - timedelta(days=30)
-        end_time = datetime.fromisoformat(end_time_str) if end_time_str else datetime.now()
-        
-        # grab the forensic stuff to make searches smarter
+
+        start_time = _parse_request_datetime(start_time_str, datetime.now() - timedelta(days=30))
+        end_time = _parse_request_datetime(end_time_str, datetime.now())
+
         forensic_events = db_manager.get_forensic_events(investigation_id)
         
         logger.info(f"Collecting web intelligence for investigation {investigation_id}")
@@ -617,7 +601,6 @@ def collect_web_intelligence(investigation_id):
 
 @app.route('/api/llm_status')
 def llm_status():
-    # see if the LLM is working
     try:
         from llm_client import OllamaClient
         
@@ -639,13 +622,11 @@ def llm_status():
 
 @app.route('/models')
 def models_page():
-    # page for managing ollama models
     model_status = ollama_manager.get_model_status()
     return render_template('models.html', **model_status)
 
 @app.route('/api/models/status')
 def api_models_status():
-    # API endpoint for model status
     try:
         model_status = ollama_manager.get_model_status()
         return jsonify(model_status)
@@ -655,9 +636,8 @@ def api_models_status():
 
 @app.route('/api/models/pull', methods=['POST'])
 def api_models_pull():
-    # download a new model
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         model_name = data.get('model_name')
         
         if not model_name:
@@ -672,9 +652,8 @@ def api_models_pull():
 
 @app.route('/api/models/delete', methods=['POST'])
 def api_models_delete():
-    # remove a model
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         model_name = data.get('model_name')
         
         if not model_name:
@@ -689,9 +668,8 @@ def api_models_delete():
 
 @app.route('/api/models/test', methods=['POST'])
 def api_models_test():
-    # check if a model works
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         model_name = data.get('model_name')
         
         if not model_name:
@@ -706,9 +684,8 @@ def api_models_test():
 
 @app.route('/api/models/set_active', methods=['POST'])
 def api_models_set_active():
-    # switch to a different model
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         model_name = data.get('model_name')
         
         if not model_name:
@@ -723,7 +700,6 @@ def api_models_set_active():
 
 @app.route('/api/investigation/<int:investigation_id>/delete', methods=['POST'])
 def delete_investigation(investigation_id):
-    # nuke an investigation completely
     try:
         investigation = db_manager.get_investigation(investigation_id)
         if not investigation:

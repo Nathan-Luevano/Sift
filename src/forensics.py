@@ -1,13 +1,10 @@
 import logging
-import hashlib
 from datetime import datetime
 from dateutil import tz
 import os
-import struct
 
 logger = logging.getLogger(__name__)
 
-# need to check if pytsk3 is installed
 try:
     import pytsk3
     PYTSK3_AVAILABLE = True
@@ -21,22 +18,20 @@ class ForensicAnalyzer:
         
     def parse_evidence_file(self, evidence_path, timezone_str='UTC'):
         try:
-            # make sure pytsk3 is actually available
             if not PYTSK3_AVAILABLE:
                 logger.error("Cannot process forensic images: pytsk3 library is not installed")
                 raise ImportError("pytsk3 library is required for forensic image processing. Please install it with: apt install python3-pytsk3 or pip install pytsk3")
-            
-            # basic file validation first
+
             if not os.path.exists(evidence_path):
                 raise FileNotFoundError(f"Evidence file not found: {evidence_path}")
             
             file_size = os.path.getsize(evidence_path)
-            if file_size < 512:  # way too small for any real forensic image
+            if file_size < 512:
                 raise ValueError(f"Evidence file is too small ({file_size} bytes). Minimum size is 512 bytes for a valid forensic image.")
             
             logger.info(f"Processing evidence file: {evidence_path} ({file_size} bytes)")
             
-            timezone = tz.gettz(timezone_str)
+            timezone = tz.gettz(timezone_str) or tz.UTC
             
             if evidence_path.endswith('.E01') or evidence_path.endswith('.e01'):
                 return self._parse_ewf_image(evidence_path, timezone)
@@ -45,7 +40,7 @@ class ForensicAnalyzer:
                 
         except Exception as e:
             logger.error(f"Error parsing evidence file {evidence_path}: {e}")
-            raise  # let the web interface handle the error properly
+            raise
     
     def _parse_ewf_image(self, ewf_path, timezone):
         try:
